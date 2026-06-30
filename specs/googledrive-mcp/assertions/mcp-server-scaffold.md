@@ -3,8 +3,7 @@ id: mcp-server-scaffold
 parent: googledrive-mcp
 created: 2026-06-30T14:00:00Z
 priority: 1
-status: in_progress
-locked-by: builder-Paris-MacBook-Pro-2-99177-1782838218
+status: done
 ---
 
 # MCP Server Scaffold
@@ -19,3 +18,5 @@ The `googledrive-mcp` binary builds, runs, and speaks MCP protocol over stdio.
 - Server responds to `initialize` and `tools/list` MCP requests
 - Server declares its tool capabilities in the MCP handshake
 - `go.mod` exists with module path and Go version specified
+
+**Tests:** `internal/mcp/server_test.go`
