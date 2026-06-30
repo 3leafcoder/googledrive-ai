@@ -3,7 +3,8 @@ id: mcp-server-scaffold
 parent: googledrive-mcp
 created: 2026-06-30T14:00:00Z
 priority: 1
-status: not_started
+status: in_progress
+locked-by: builder-Paris-MacBook-Pro-2-99177-1782838218
 ---
 
 # MCP Server Scaffold
