@@ -13,7 +13,7 @@ A Go MCP server (`googledrive-mcp`) that exposes Google Drive, Docs, and Sheets 
 - **Language:** Go
 - **MCP SDK:** `github.com/mark3labs/mcp-go`
 - **Transport:** stdio
-- **Auth:** Google OAuth2 with local token caching (`~/.config/googledrive-mcp/`)
+- **Auth:** Google OAuth2 with local token caching (`~/.config/googledrive-ai/`)
 - **Google APIs:** Drive v3, Docs v1, Sheets v4
 
 ## Project Structure
