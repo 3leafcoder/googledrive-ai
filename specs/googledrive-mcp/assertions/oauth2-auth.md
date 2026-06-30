@@ -3,7 +3,8 @@ id: oauth2-auth
 parent: googledrive-mcp
 created: 2026-06-30T14:00:00Z
 priority: 1
-status: not_started
+status: in_progress
+locked-by: builder-Paris-MacBook-Pro-2-39362-1782838713
 depends-on: mcp-server-scaffold
 ---
 
