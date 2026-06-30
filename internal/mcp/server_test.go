@@ -59,11 +59,15 @@ func TestNewServer_InitializeAndListTools(t *testing.T) {
 		t.Fatalf("expected ListToolsResult, got %T", resp2.Result)
 	}
 
-	// Should have the 3 sheets read tools registered.
+	// Should have sheets and docs tools registered.
 	wantTools := map[string]bool{
 		"sheets_list_sheets":  false,
 		"sheets_read_range":   false,
 		"sheets_get_metadata": false,
+		"docs_create":         false,
+		"docs_read":           false,
+		"docs_append":         false,
+		"docs_replace":        false,
 	}
 	for _, tool := range listResult.Tools {
 		if _, ok := wantTools[tool.Name]; ok {
