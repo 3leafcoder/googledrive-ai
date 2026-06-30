@@ -3,8 +3,9 @@ id: sheets-write-tools
 parent: googledrive-mcp
 created: 2026-06-30T14:00:00Z
 priority: 1
-status: not_started
+status: in_progress
 depends-on: sheets-read-tools
+locked-by: builder-Paris-MacBook-Pro-2-51203-1751299200
 ---
 
 # Sheets Write Tools
