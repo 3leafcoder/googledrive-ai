@@ -3,6 +3,7 @@ package mcp
 import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/pariwork/googledrive-ai/internal/docs"
+	"github.com/pariwork/googledrive-ai/internal/drive"
 	"github.com/pariwork/googledrive-ai/internal/sheets"
 	"golang.org/x/oauth2"
 )
@@ -20,6 +21,7 @@ func NewServer(ts oauth2.TokenSource) *server.MCPServer {
 		server.WithToolCapabilities(false),
 	)
 
+	drive.RegisterTools(s, ts)
 	sheets.RegisterTools(s, ts)
 	docs.RegisterTools(s, ts)
 
