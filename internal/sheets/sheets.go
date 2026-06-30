@@ -12,11 +12,12 @@ import (
 	sheetsapi "google.golang.org/api/sheets/v4"
 )
 
-// RegisterTools adds all Sheets read tools to the MCP server.
+// RegisterTools adds all Sheets tools to the MCP server.
 func RegisterTools(s *server.MCPServer, ts oauth2.TokenSource) {
 	s.AddTool(listSheetsTool(), listSheetsHandler(ts))
 	s.AddTool(readRangeTool(), readRangeHandler(ts))
 	s.AddTool(getMetadataTool(), getMetadataHandler(ts))
+	registerWriteTools(s, ts)
 }
 
 func newService(ctx context.Context, ts oauth2.TokenSource) (*sheetsapi.Service, error) {
