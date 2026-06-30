@@ -3,7 +3,8 @@ id: docs-tools
 parent: googledrive-mcp
 created: 2026-06-30T14:00:00Z
 priority: 2
-status: not_started
+status: in_progress
+locked-by: builder-Paris-MacBook-Pro-2-24498-1782841252
 depends-on: oauth2-auth
 ---
 
