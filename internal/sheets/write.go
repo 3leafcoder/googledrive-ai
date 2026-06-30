@@ -16,6 +16,7 @@ func registerWriteTools(s *server.MCPServer, ts oauth2.TokenSource) {
 	s.AddTool(appendRowsTool(), appendRowsHandler(ts))
 	s.AddTool(addSheetTool(), addSheetHandler(ts))
 	s.AddTool(createSpreadsheetTool(), createSpreadsheetHandler(ts))
+	s.AddTool(batchUpdateTool(), batchUpdateHandler(ts))
 }
 
 // --- sheets_write_range ---
