@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/pariwork/googledrive-ai/internal/sheets"
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -9,12 +11,15 @@ const (
 	serverVersion = "0.1.0"
 )
 
-// NewServer creates a configured MCP server with tool capabilities declared.
-func NewServer() *server.MCPServer {
+// NewServer creates a configured MCP server with all tools registered.
+func NewServer(ts oauth2.TokenSource) *server.MCPServer {
 	s := server.NewMCPServer(
 		serverName,
 		serverVersion,
 		server.WithToolCapabilities(false),
 	)
+
+	sheets.RegisterTools(s, ts)
+
 	return s
 }

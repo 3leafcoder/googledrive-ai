@@ -8,10 +8,18 @@ import (
 	internalmcp "github.com/pariwork/googledrive-ai/internal/mcp"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"golang.org/x/oauth2"
 )
 
+// stubTokenSource satisfies oauth2.TokenSource for testing.
+type stubTokenSource struct{}
+
+func (s *stubTokenSource) Token() (*oauth2.Token, error) {
+	return &oauth2.Token{AccessToken: "test-token"}, nil
+}
+
 func TestNewServer_InitializeAndListTools(t *testing.T) {
-	s := internalmcp.NewServer()
+	s := internalmcp.NewServer(&stubTokenSource{})
 
 	// Send initialize request as raw JSON.
 	initJSON := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}`
@@ -46,8 +54,25 @@ func TestNewServer_InitializeAndListTools(t *testing.T) {
 		t.Fatalf("expected JSONRPCResponse, got %T", listResp)
 	}
 
-	_, ok = resp2.Result.(mcp.ListToolsResult)
+	listResult, ok := resp2.Result.(mcp.ListToolsResult)
 	if !ok {
 		t.Fatalf("expected ListToolsResult, got %T", resp2.Result)
+	}
+
+	// Should have the 3 sheets read tools registered.
+	wantTools := map[string]bool{
+		"sheets_list_sheets":  false,
+		"sheets_read_range":   false,
+		"sheets_get_metadata": false,
+	}
+	for _, tool := range listResult.Tools {
+		if _, ok := wantTools[tool.Name]; ok {
+			wantTools[tool.Name] = true
+		}
+	}
+	for name, found := range wantTools {
+		if !found {
+			t.Errorf("expected tool %q to be registered", name)
+		}
 	}
 }

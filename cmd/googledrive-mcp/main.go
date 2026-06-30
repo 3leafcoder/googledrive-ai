@@ -20,13 +20,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, err = auth.GetTokenSource(ctx, config)
+	ts, err := auth.GetTokenSource(ctx, config)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "authentication failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	s := internalmcp.NewServer()
+	s := internalmcp.NewServer(ts)
 	if err := server.ServeStdio(s); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)
