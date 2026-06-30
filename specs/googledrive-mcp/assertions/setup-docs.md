@@ -3,8 +3,7 @@ id: setup-docs
 parent: googledrive-mcp
 created: 2026-06-30T14:00:00Z
 priority: 1
-status: in_progress
-locked-by: builder-Paris-MacBook-Pro-2.local-79235-1782839259
+status: done
 depends-on: oauth2-auth
 ---
 
