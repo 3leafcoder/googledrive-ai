@@ -3,7 +3,8 @@ id: sheets-batch-operations
 parent: googledrive-mcp
 created: 2026-06-30T14:00:00Z
 priority: 1
-status: not_started
+status: in_progress
+locked-by: builder-Paris-MacBook-Pro-2.local-75045-1782840524
 depends-on: sheets-write-tools
 ---
 
