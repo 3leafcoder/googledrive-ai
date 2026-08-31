@@ -48,13 +48,17 @@ func credentialsPath() (string, error) {
 	return filepath.Join(dir, "credentials.json"), nil
 }
 
-// tokenPath returns the full path to token.json.
-func tokenPath() (string, error) {
+// TokenPathForProfile returns the full path to token.json for the given profile.
+// An empty profile name uses the default location (~/.config/googledrive-ai/token.json).
+func TokenPathForProfile(profile string) (string, error) {
 	dir, err := ConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "token.json"), nil
+	if profile == "" {
+		return filepath.Join(dir, "token.json"), nil
+	}
+	return filepath.Join(dir, "profiles", profile, "token.json"), nil
 }
 
 // LoadCredentials reads the OAuth2 client credentials from credentials.json.
@@ -89,9 +93,9 @@ func LoadCredentials() (*oauth2.Config, error) {
 	return config, nil
 }
 
-// loadCachedToken attempts to read a cached token from token.json.
-func loadCachedToken() (*oauth2.Token, error) {
-	tp, err := tokenPath()
+// loadCachedTokenForProfile attempts to read a cached token for the given profile.
+func loadCachedTokenForProfile(profile string) (*oauth2.Token, error) {
+	tp, err := TokenPathForProfile(profile)
 	if err != nil {
 		return nil, err
 	}
@@ -106,9 +110,9 @@ func loadCachedToken() (*oauth2.Token, error) {
 	return &tok, nil
 }
 
-// saveToken writes the token to token.json.
-func saveToken(tok *oauth2.Token) error {
-	tp, err := tokenPath()
+// saveTokenForProfile writes the token for the given profile.
+func saveTokenForProfile(profile string, tok *oauth2.Token) error {
+	tp, err := TokenPathForProfile(profile)
 	if err != nil {
 		return err
 	}
@@ -122,32 +126,49 @@ func saveToken(tok *oauth2.Token) error {
 	return os.WriteFile(tp, data, 0600)
 }
 
-// GetTokenSource returns an oauth2.TokenSource that automatically refreshes
-// and caches tokens. On first run, it launches a browser-based consent flow.
+// DeleteTokenForProfile removes the cached token for the given profile.
+func DeleteTokenForProfile(profile string) error {
+	tp, err := TokenPathForProfile(profile)
+	if err != nil {
+		return err
+	}
+	err = os.Remove(tp)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
+// GetTokenSource returns an oauth2.TokenSource for the default profile that
+// automatically refreshes and caches tokens. On first run, it launches a
+// browser-based consent flow.
 func GetTokenSource(ctx context.Context, config *oauth2.Config) (oauth2.TokenSource, error) {
-	tok, err := loadCachedToken()
+	return GetTokenSourceForProfile(ctx, config, "")
+}
+
+// GetTokenSourceForProfile returns an oauth2.TokenSource for the given profile.
+func GetTokenSourceForProfile(ctx context.Context, config *oauth2.Config, profile string) (oauth2.TokenSource, error) {
+	tok, err := loadCachedTokenForProfile(profile)
 	if err == nil {
-		// We have a cached token. Wrap it in a ReuseTokenSource that will
-		// auto-refresh and we persist the refreshed token.
 		ts := config.TokenSource(ctx, tok)
-		return &cachingTokenSource{ts: ts}, nil
+		return &cachingTokenSource{ts: ts, profile: profile}, nil
 	}
 
-	// No cached token — run the browser consent flow.
 	tok, err = browserAuthFlow(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("authorization flow failed: %w", err)
 	}
-	if err := saveToken(tok); err != nil {
+	if err := saveTokenForProfile(profile, tok); err != nil {
 		return nil, fmt.Errorf("saving token: %w", err)
 	}
 	ts := config.TokenSource(ctx, tok)
-	return &cachingTokenSource{ts: ts}, nil
+	return &cachingTokenSource{ts: ts, profile: profile}, nil
 }
 
 // cachingTokenSource wraps a TokenSource and saves refreshed tokens to disk.
 type cachingTokenSource struct {
-	ts oauth2.TokenSource
+	ts      oauth2.TokenSource
+	profile string
 }
 
 func (c *cachingTokenSource) Token() (*oauth2.Token, error) {
@@ -156,7 +177,7 @@ func (c *cachingTokenSource) Token() (*oauth2.Token, error) {
 		return nil, err
 	}
 	// Best-effort save on each token retrieval (handles refresh).
-	_ = saveToken(tok)
+	_ = saveTokenForProfile(c.profile, tok)
 	return tok, nil
 }
 
@@ -249,4 +270,151 @@ func openBrowser(url string) {
 		cmd = exec.Command("cmd", "/c", "start", url)
 	}
 	_ = cmd.Start()
+}
+
+// RunAuthFlow runs the browser OAuth flow for a profile and saves the token.
+// If force is true, deletes the existing token first.
+// Returns the token source on success.
+func RunAuthFlow(ctx context.Context, config *oauth2.Config, profile string, force bool) (oauth2.TokenSource, error) {
+	if force {
+		if err := DeleteTokenForProfile(profile); err != nil {
+			return nil, fmt.Errorf("deleting existing token: %w", err)
+		}
+	}
+
+	tok, err := browserAuthFlow(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("authorization flow failed: %w", err)
+	}
+	if err := saveTokenForProfile(profile, tok); err != nil {
+		return nil, fmt.Errorf("saving token: %w", err)
+	}
+	if err := saveProfileEmail(ctx, config, profile, tok); err != nil {
+		// Non-fatal: token is saved, email metadata is best-effort.
+		fmt.Fprintf(os.Stderr, "warning: could not fetch user email: %v\n", err)
+	}
+	return config.TokenSource(ctx, tok), nil
+}
+
+// saveProfileEmail fetches the user's email and saves it as profile metadata.
+func saveProfileEmail(ctx context.Context, config *oauth2.Config, profile string, tok *oauth2.Token) error {
+	ts := config.TokenSource(ctx, tok)
+	email, err := FetchUserEmail(ctx, ts)
+	if err != nil {
+		return err
+	}
+	return saveProfileInfo(profile, email)
+}
+
+// FetchUserEmail retrieves the authenticated user's email via the Drive API.
+func FetchUserEmail(ctx context.Context, ts oauth2.TokenSource) (string, error) {
+	client := oauth2.NewClient(ctx, ts)
+	resp, err := client.Get("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)")
+	if err != nil {
+		return "", fmt.Errorf("fetching user info: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("user info request failed: %s", resp.Status)
+	}
+
+	var result struct {
+		User struct {
+			EmailAddress string `json:"emailAddress"`
+		} `json:"user"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("parsing user info: %w", err)
+	}
+	return result.User.EmailAddress, nil
+}
+
+// profileInfoPath returns the path to profile.json for the given profile.
+func profileInfoPath(profile string) (string, error) {
+	tp, err := TokenPathForProfile(profile)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(tp), "profile.json"), nil
+}
+
+type profileInfo struct {
+	Email string `json:"email"`
+}
+
+func saveProfileInfo(profile string, email string) error {
+	pp, err := profileInfoPath(profile)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(pp), 0700); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(profileInfo{Email: email}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(pp, data, 0600)
+}
+
+func loadProfileEmail(profile string) (string, error) {
+	pp, err := profileInfoPath(profile)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(pp)
+	if err != nil {
+		return "", err
+	}
+	var info profileInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		return "", err
+	}
+	return info.Email, nil
+}
+
+// ProfileEntry represents a profile with its name and email.
+type ProfileEntry struct {
+	Name  string
+	Email string
+}
+
+// ListProfiles returns all configured profiles with their emails.
+func ListProfiles() ([]ProfileEntry, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return nil, err
+	}
+
+	var profiles []ProfileEntry
+
+	// Check default profile.
+	if _, err := os.Stat(filepath.Join(dir, "token.json")); err == nil {
+		email, _ := loadProfileEmail("")
+		profiles = append(profiles, ProfileEntry{Name: "default", Email: email})
+	}
+
+	// Scan profiles/ directory.
+	profilesDir := filepath.Join(dir, "profiles")
+	entries, err := os.ReadDir(profilesDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return profiles, nil
+		}
+		return nil, err
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		tokenFile := filepath.Join(profilesDir, e.Name(), "token.json")
+		if _, err := os.Stat(tokenFile); err != nil {
+			continue
+		}
+		email, _ := loadProfileEmail(e.Name())
+		profiles = append(profiles, ProfileEntry{Name: e.Name(), Email: email})
+	}
+
+	return profiles, nil
 }
