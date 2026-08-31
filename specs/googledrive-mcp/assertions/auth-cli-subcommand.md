@@ -3,7 +3,8 @@ id: auth-cli-subcommand
 parent: googledrive-mcp
 created: 2026-08-31T20:30:00Z
 priority: 1
-status: not_started
+status: in_progress
+locked-by: builder-MacBook-Pro.local-89837-1788191087
 depends-on: headless-auth-fallback
 ---
 
