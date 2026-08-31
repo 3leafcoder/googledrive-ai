@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/pariwork/googledrive-ai/internal/auth"
 	internalmcp "github.com/pariwork/googledrive-ai/internal/mcp"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -19,7 +20,8 @@ func (s *stubTokenSource) Token() (*oauth2.Token, error) {
 }
 
 func TestNewServer_InitializeAndListTools(t *testing.T) {
-	s := internalmcp.NewServer(&stubTokenSource{})
+	pm := auth.NewProfileManager(&oauth2.Config{}, "", &stubTokenSource{})
+	s := internalmcp.NewServer(pm)
 
 	// Send initialize request as raw JSON.
 	initJSON := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1.0"}}}`
@@ -59,15 +61,17 @@ func TestNewServer_InitializeAndListTools(t *testing.T) {
 		t.Fatalf("expected ListToolsResult, got %T", resp2.Result)
 	}
 
-	// Should have sheets and docs tools registered.
 	wantTools := map[string]bool{
-		"sheets_list_sheets":  false,
-		"sheets_read_range":   false,
-		"sheets_get_metadata": false,
-		"docs_create":         false,
-		"docs_read":           false,
-		"docs_append":         false,
-		"docs_replace":        false,
+		"sheets_list_sheets":   false,
+		"sheets_read_range":    false,
+		"sheets_get_metadata":  false,
+		"docs_create":          false,
+		"docs_read":            false,
+		"docs_append":          false,
+		"docs_replace":         false,
+		"auth_status":          false,
+		"auth_list_profiles":   false,
+		"auth_switch_profile":  false,
 	}
 	for _, tool := range listResult.Tools {
 		if _, ok := wantTools[tool.Name]; ok {

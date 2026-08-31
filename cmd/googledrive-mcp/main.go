@@ -36,7 +36,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := internalmcp.NewServer(ts)
+	pm := auth.NewProfileManager(config, "", ts)
+	s := internalmcp.NewServer(pm)
 	if err := server.ServeStdio(s); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)

@@ -3,8 +3,7 @@ id: auth-management-tools
 parent: googledrive-mcp
 created: 2026-08-31T20:30:00Z
 priority: 1
-status: in_progress
-locked-by: builder-MacBook-Pro.local-24854-1725134400
+status: done
 depends-on: oauth2-auth
 ---
 
