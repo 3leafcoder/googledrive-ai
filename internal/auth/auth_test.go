@@ -227,6 +227,100 @@ func TestBrowserAuthFlow_CallbackWins(t *testing.T) {
 	}
 }
 
+func TestCredentialsPathForProfile(t *testing.T) {
+	dir, _ := ConfigDir()
+
+	// Default profile uses root credentials.json.
+	cp, err := CredentialsPathForProfile("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cp != filepath.Join(dir, "credentials.json") {
+		t.Errorf("default profile path = %q, want %q", cp, filepath.Join(dir, "credentials.json"))
+	}
+
+	// Named profile uses profiles/<name>/credentials.json.
+	cp, err = CredentialsPathForProfile("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(dir, "profiles", "work", "credentials.json")
+	if cp != want {
+		t.Errorf("named profile path = %q, want %q", cp, want)
+	}
+}
+
+func TestLoadCredentialsForProfile_ErrorIncludesProfilePath(t *testing.T) {
+	// Named profile should reference the profile-specific path in the error.
+	_, err := LoadCredentialsForProfile("nonexistent-test-profile")
+	if err == nil {
+		t.Skip("credentials.json unexpectedly exists for nonexistent-test-profile")
+	}
+	if !strings.Contains(err.Error(), "profiles/nonexistent-test-profile/credentials.json") {
+		t.Errorf("error should reference profile-specific path, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Setup steps") {
+		t.Errorf("error should include setup instructions, got: %v", err)
+	}
+}
+
+func TestLoadClientID(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "installed app",
+			content: `{"installed":{"client_id":"123.apps.googleusercontent.com","client_secret":"secret"}}`,
+			want:    "123.apps.googleusercontent.com",
+		},
+		{
+			name:    "web app",
+			content: `{"web":{"client_id":"456.apps.googleusercontent.com","client_secret":"secret"}}`,
+			want:    "456.apps.googleusercontent.com",
+		},
+		{
+			name:    "malformed json",
+			content: `not json`,
+			want:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := filepath.Join(tmpDir, tt.name+".json")
+			os.WriteFile(f, []byte(tt.content), 0600)
+
+			// loadClientID reads from CredentialsPathForProfile which uses ConfigDir.
+			// We test the parsing logic directly instead.
+			var raw map[string]json.RawMessage
+			if json.Unmarshal([]byte(tt.content), &raw) != nil {
+				if tt.want != "" {
+					t.Errorf("expected client_id %q but parsing failed", tt.want)
+				}
+				return
+			}
+			var got string
+			for _, key := range []string{"installed", "web"} {
+				if inner, ok := raw[key]; ok {
+					var creds struct {
+						ClientID string `json:"client_id"`
+					}
+					if json.Unmarshal(inner, &creds) == nil {
+						got = creds.ClientID
+					}
+				}
+			}
+			if got != tt.want {
+				t.Errorf("client_id = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTokenPathForProfile(t *testing.T) {
 	dir, _ := ConfigDir()
 

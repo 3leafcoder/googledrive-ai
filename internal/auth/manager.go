@@ -80,9 +80,10 @@ type ProfileStatus struct {
 
 // ProfileDetail holds listing information for a profile.
 type ProfileDetail struct {
-	Name    string `json:"name"`
-	Email   string `json:"email"`
-	IsValid bool   `json:"is_valid"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	IsValid  bool   `json:"is_valid"`
+	ClientID string `json:"client_id,omitempty"`
 }
 
 // List returns all profiles with validity status.
@@ -109,9 +110,10 @@ func (m *ProfileManager) List(ctx context.Context) ([]ProfileDetail, error) {
 		}
 		valid := isTokenValid(ctx, config, raw)
 		details[i] = ProfileDetail{
-			Name:    e.Name,
-			Email:   e.Email,
-			IsValid: valid,
+			Name:     e.Name,
+			Email:    e.Email,
+			IsValid:  valid,
+			ClientID: e.ClientID,
 		}
 	}
 	return details, nil

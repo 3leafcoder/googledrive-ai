@@ -21,22 +21,26 @@ func main() {
 		return
 	}
 
-	// Default: start MCP server.
+	// Parse top-level flags for MCP server mode.
+	fs := flag.NewFlagSet("googledrive-mcp", flag.ExitOnError)
+	profile := fs.String("profile", "", "profile name to use for MCP server")
+	fs.Parse(os.Args[1:])
+
 	ctx := context.Background()
 
-	config, err := auth.LoadCredentials()
+	config, err := auth.LoadCredentialsForProfile(*profile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	ts, err := auth.GetTokenSource(ctx, config)
+	ts, err := auth.GetTokenSourceForProfile(ctx, config, *profile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "authentication failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	pm := auth.NewProfileManager(config, "", ts)
+	pm := auth.NewProfileManager(config, *profile, ts)
 	s := internalmcp.NewServer(pm)
 	if err := server.ServeStdio(s); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
@@ -57,7 +61,7 @@ func runAuth() error {
 
 	ctx := context.Background()
 
-	config, err := auth.LoadCredentials()
+	config, err := auth.LoadCredentialsForProfile(*profile)
 	if err != nil {
 		return err
 	}
@@ -86,11 +90,15 @@ func runAuthList() error {
 		return nil
 	}
 	for _, p := range profiles {
-		if p.Email != "" {
-			fmt.Fprintf(os.Stderr, "%-20s %s\n", p.Name, p.Email)
-		} else {
-			fmt.Fprintf(os.Stderr, "%-20s (email unknown)\n", p.Name)
+		email := p.Email
+		if email == "" {
+			email = "(email unknown)"
 		}
+		client := p.ClientID
+		if client == "" {
+			client = "(no credentials)"
+		}
+		fmt.Fprintf(os.Stderr, "%-20s %-30s %s\n", p.Name, email, client)
 	}
 	return nil
 }

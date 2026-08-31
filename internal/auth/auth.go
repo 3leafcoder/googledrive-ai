@@ -39,13 +39,26 @@ func ConfigDir() (string, error) {
 	return filepath.Join(home, ".config", configDir), nil
 }
 
-// credentialsPath returns the full path to credentials.json.
+// credentialsPath returns the full path to credentials.json for the default profile.
 func credentialsPath() (string, error) {
 	dir, err := ConfigDir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(dir, "credentials.json"), nil
+}
+
+// CredentialsPathForProfile returns the full path to credentials.json for the given profile.
+// An empty profile name uses the default location (~/.config/googledrive-ai/credentials.json).
+func CredentialsPathForProfile(profile string) (string, error) {
+	if profile == "" {
+		return credentialsPath()
+	}
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "profiles", profile, "credentials.json"), nil
 }
 
 // TokenPathForProfile returns the full path to token.json for the given profile.
@@ -61,10 +74,17 @@ func TokenPathForProfile(profile string) (string, error) {
 	return filepath.Join(dir, "profiles", profile, "token.json"), nil
 }
 
-// LoadCredentials reads the OAuth2 client credentials from credentials.json.
+// LoadCredentials reads the OAuth2 client credentials from the default credentials.json.
 // Returns a clear error with setup instructions if the file is missing.
 func LoadCredentials() (*oauth2.Config, error) {
-	cp, err := credentialsPath()
+	return LoadCredentialsForProfile("")
+}
+
+// LoadCredentialsForProfile reads the OAuth2 client credentials for the given profile.
+// An empty profile uses the default location. Named profiles look for credentials.json
+// in their profile directory.
+func LoadCredentialsForProfile(profile string) (*oauth2.Config, error) {
+	cp, err := CredentialsPathForProfile(profile)
 	if err != nil {
 		return nil, err
 	}
@@ -374,13 +394,43 @@ func loadProfileEmail(profile string) (string, error) {
 	return info.Email, nil
 }
 
-// ProfileEntry represents a profile with its name and email.
+// ProfileEntry represents a profile with its name, email, and OAuth client info.
 type ProfileEntry struct {
-	Name  string
-	Email string
+	Name     string
+	Email    string
+	ClientID string // OAuth client ID from credentials.json
 }
 
-// ListProfiles returns all configured profiles with their emails.
+// loadClientID reads the client_id from a credentials.json file.
+// Returns empty string on any error (best-effort).
+func loadClientID(profile string) string {
+	cp, err := CredentialsPathForProfile(profile)
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(cp)
+	if err != nil {
+		return ""
+	}
+	// credentials.json is either {"installed":{...}} or {"web":{...}}.
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return ""
+	}
+	for _, key := range []string{"installed", "web"} {
+		if inner, ok := raw[key]; ok {
+			var creds struct {
+				ClientID string `json:"client_id"`
+			}
+			if json.Unmarshal(inner, &creds) == nil {
+				return creds.ClientID
+			}
+		}
+	}
+	return ""
+}
+
+// ListProfiles returns all configured profiles with their emails and OAuth client info.
 func ListProfiles() ([]ProfileEntry, error) {
 	dir, err := ConfigDir()
 	if err != nil {
@@ -392,7 +442,8 @@ func ListProfiles() ([]ProfileEntry, error) {
 	// Check default profile.
 	if _, err := os.Stat(filepath.Join(dir, "token.json")); err == nil {
 		email, _ := loadProfileEmail("")
-		profiles = append(profiles, ProfileEntry{Name: "default", Email: email})
+		clientID := loadClientID("")
+		profiles = append(profiles, ProfileEntry{Name: "default", Email: email, ClientID: clientID})
 	}
 
 	// Scan profiles/ directory.
@@ -413,7 +464,8 @@ func ListProfiles() ([]ProfileEntry, error) {
 			continue
 		}
 		email, _ := loadProfileEmail(e.Name())
-		profiles = append(profiles, ProfileEntry{Name: e.Name(), Email: email})
+		clientID := loadClientID(e.Name())
+		profiles = append(profiles, ProfileEntry{Name: e.Name(), Email: email, ClientID: clientID})
 	}
 
 	return profiles, nil
