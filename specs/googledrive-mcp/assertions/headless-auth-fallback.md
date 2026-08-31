@@ -3,8 +3,7 @@ id: headless-auth-fallback
 parent: googledrive-mcp
 created: 2026-08-31T20:00:00Z
 priority: 1
-status: in_progress
-locked-by: builder-macbook-pro.local-29001-1788185726
+status: done
 depends-on: oauth2-auth
 ---
 

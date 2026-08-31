@@ -1,19 +1,26 @@
 package auth
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
+
+// stdinReader is the io.Reader used for the manual code paste prompt.
+// Tests can replace this to avoid blocking on os.Stdin.
+var stdinReader io.Reader = os.Stdin
 
 const configDir = "googledrive-ai"
 
@@ -153,8 +160,20 @@ func (c *cachingTokenSource) Token() (*oauth2.Token, error) {
 	return tok, nil
 }
 
+// callbackPage is the HTML returned after the OAuth2 redirect. It shows the
+// authorization code on screen so the user can copy-paste it in headless
+// environments where the callback cannot reach the CLI.
+const callbackPage = `<!DOCTYPE html>
+<html><head><title>Authorization</title></head><body>
+<h2>Authorization successful!</h2>
+<p>If the terminal accepted the code automatically, you can close this window.</p>
+<p>Otherwise, copy the code below and paste it into your terminal:</p>
+<pre style="background:#f0f0f0;padding:12px;font-size:16px;user-select:all">%s</pre>
+</body></html>`
+
 // browserAuthFlow starts a local HTTP server, opens the browser for consent,
-// and waits for the callback with the authorization code.
+// and races the HTTP callback against a stdin paste prompt so that headless
+// users (SSH, Docker, WSL, port-blocked) can still authenticate.
 func browserAuthFlow(ctx context.Context, config *oauth2.Config) (*oauth2.Token, error) {
 	// Start a listener on a random port.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -177,8 +196,13 @@ func browserAuthFlow(ctx context.Context, config *oauth2.Config) (*oauth2.Token,
 			fmt.Fprintln(w, "Authorization failed. You can close this window.")
 			return
 		}
-		codeCh <- code
-		fmt.Fprintln(w, "Authorization successful! You can close this window.")
+		// Send code to the race channel (non-blocking — first writer wins).
+		select {
+		case codeCh <- code:
+		default:
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, callbackPage, code)
 	})
 
 	srv := &http.Server{Handler: mux}
@@ -188,6 +212,21 @@ func browserAuthFlow(ctx context.Context, config *oauth2.Config) (*oauth2.Token,
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 	fmt.Fprintf(os.Stderr, "Opening browser for authorization...\nIf the browser doesn't open, visit:\n%s\n", authURL)
 	openBrowser(authURL)
+
+	// Start stdin reader in a goroutine so headless users can paste the code.
+	fmt.Fprintf(os.Stderr, "Paste authorization code here: ")
+	go func() {
+		scanner := bufio.NewScanner(stdinReader)
+		if scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line != "" {
+				select {
+				case codeCh <- line:
+				default:
+				}
+			}
+		}
+	}()
 
 	select {
 	case code := <-codeCh:
