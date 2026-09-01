@@ -26,21 +26,23 @@ func main() {
 	profile := fs.String("profile", "", "profile name to use for MCP server")
 	fs.Parse(os.Args[1:])
 
+	resolved := auth.ResolveProfile(*profile)
+
 	ctx := context.Background()
 
-	config, err := auth.LoadCredentialsForProfile(*profile)
+	config, err := auth.LoadCredentialsForProfile(resolved)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	ts, err := auth.GetTokenSourceForProfile(ctx, config, *profile)
+	ts, err := auth.GetTokenSourceForProfile(ctx, config, resolved)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "authentication failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	pm := auth.NewProfileManager(config, *profile, ts)
+	pm := auth.NewProfileManager(config, resolved, ts)
 	s := internalmcp.NewServer(pm)
 	if err := server.ServeStdio(s); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
@@ -52,6 +54,10 @@ func runAuth() error {
 	// Handle "auth list" subcommand.
 	if len(os.Args) > 2 && os.Args[2] == "list" {
 		return runAuthList()
+	}
+	// Handle "auth default" subcommand.
+	if len(os.Args) > 2 && os.Args[2] == "default" {
+		return runAuthDefault()
 	}
 
 	fs := flag.NewFlagSet("auth", flag.ExitOnError)
@@ -80,6 +86,24 @@ func runAuth() error {
 	return nil
 }
 
+func runAuthDefault() error {
+	if len(os.Args) > 3 {
+		name := os.Args[3]
+		if err := auth.SaveDefaultProfile(name); err != nil {
+			return fmt.Errorf("saving default profile: %w", err)
+		}
+		fmt.Fprintf(os.Stderr, "Default profile set to: %s\n", name)
+		return nil
+	}
+	name, err := auth.LoadDefaultProfile()
+	if err != nil || name == "" {
+		fmt.Fprintln(os.Stderr, "No default profile set (will use first available)")
+		return nil
+	}
+	fmt.Fprintln(os.Stderr, name)
+	return nil
+}
+
 func runAuthList() error {
 	profiles, err := auth.ListProfiles()
 	if err != nil {
@@ -90,6 +114,10 @@ func runAuthList() error {
 		return nil
 	}
 	for _, p := range profiles {
+		marker := "  "
+		if p.IsDefault {
+			marker = "* "
+		}
 		email := p.Email
 		if email == "" {
 			email = "(email unknown)"
@@ -98,7 +126,7 @@ func runAuthList() error {
 		if client == "" {
 			client = "(no credentials)"
 		}
-		fmt.Fprintf(os.Stderr, "%-20s %-30s %s\n", p.Name, email, client)
+		fmt.Fprintf(os.Stderr, "%s%-20s %-30s %s\n", marker, p.Name, email, client)
 	}
 	return nil
 }

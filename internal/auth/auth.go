@@ -89,6 +89,11 @@ func LoadCredentialsForProfile(profile string) (*oauth2.Config, error) {
 		return nil, err
 	}
 
+	// Ensure the profile directory exists so users can drop credentials.json into it.
+	if err := os.MkdirAll(filepath.Dir(cp), 0700); err != nil {
+		return nil, fmt.Errorf("creating config directory: %w", err)
+	}
+
 	data, err := os.ReadFile(cp)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -396,9 +401,10 @@ func loadProfileEmail(profile string) (string, error) {
 
 // ProfileEntry represents a profile with its name, email, and OAuth client info.
 type ProfileEntry struct {
-	Name     string
-	Email    string
-	ClientID string // OAuth client ID from credentials.json
+	Name      string
+	Email     string
+	ClientID  string // OAuth client ID from credentials.json
+	IsDefault bool
 }
 
 // loadClientID reads the client_id from a credentials.json file.
@@ -430,6 +436,70 @@ func loadClientID(profile string) string {
 	return ""
 }
 
+// SaveDefaultProfile writes the default profile name to ~/.config/googledrive-ai/default_profile.
+func SaveDefaultProfile(name string) error {
+	dir, err := ConfigDir()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "default_profile"), []byte(name), 0600)
+}
+
+// LoadDefaultProfile reads the default profile name from ~/.config/googledrive-ai/default_profile.
+func LoadDefaultProfile() (string, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "default_profile"))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+// ResolveProfile determines which profile to use:
+// 1. explicit flag value
+// 2. default_profile file
+// 3. first available profile (unnamed default first, then alphabetical named profiles)
+func ResolveProfile(explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	if name, err := LoadDefaultProfile(); err == nil && name != "" {
+		return name
+	}
+	// Try unnamed default profile.
+	dir, err := ConfigDir()
+	if err != nil {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(dir, "token.json")); err == nil {
+		return ""
+	}
+	// Scan named profiles alphabetically.
+	profilesDir := filepath.Join(dir, "profiles")
+	entries, err := os.ReadDir(profilesDir)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(profilesDir, e.Name(), "token.json")); err == nil {
+			return e.Name()
+		}
+	}
+	return ""
+}
+
+// resolvedDefault returns the profile name that ResolveProfile would pick when no explicit flag is given.
+// Used by ListProfiles to mark which profile is the effective default.
+func resolvedDefault() string {
+	return ResolveProfile("")
+}
+
 // ListProfiles returns all configured profiles with their emails and OAuth client info.
 func ListProfiles() ([]ProfileEntry, error) {
 	dir, err := ConfigDir()
@@ -437,13 +507,15 @@ func ListProfiles() ([]ProfileEntry, error) {
 		return nil, err
 	}
 
+	def := resolvedDefault()
+
 	var profiles []ProfileEntry
 
 	// Check default profile.
 	if _, err := os.Stat(filepath.Join(dir, "token.json")); err == nil {
 		email, _ := loadProfileEmail("")
 		clientID := loadClientID("")
-		profiles = append(profiles, ProfileEntry{Name: "default", Email: email, ClientID: clientID})
+		profiles = append(profiles, ProfileEntry{Name: "default", Email: email, ClientID: clientID, IsDefault: def == ""})
 	}
 
 	// Scan profiles/ directory.
@@ -465,7 +537,7 @@ func ListProfiles() ([]ProfileEntry, error) {
 		}
 		email, _ := loadProfileEmail(e.Name())
 		clientID := loadClientID(e.Name())
-		profiles = append(profiles, ProfileEntry{Name: e.Name(), Email: email, ClientID: clientID})
+		profiles = append(profiles, ProfileEntry{Name: e.Name(), Email: email, ClientID: clientID, IsDefault: def == e.Name()})
 	}
 
 	return profiles, nil
