@@ -24,7 +24,7 @@ func TestToolDefinitions(t *testing.T) {
 		{"drive_search", searchTool(), []string{"query"}},
 		{"drive_get", getTool(), []string{"file_id"}},
 		{"drive_create_folder", createFolderTool(), []string{"name"}},
-		{"drive_upload", uploadTool(), []string{"name", "content", "mime_type"}},
+		{"drive_upload", uploadTool(), nil},
 		{"drive_download", downloadTool(), []string{"file_id"}},
 		{"drive_delete", deleteTool(), []string{"file_id"}},
 		{"drive_move", moveTool(), []string{"file_id", "new_parent_id"}},

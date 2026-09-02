@@ -1,11 +1,15 @@
 package drive
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -278,28 +282,32 @@ func createFolderHandler(ts oauth2.TokenSource) server.ToolHandlerFunc {
 func uploadTool() mcp.Tool {
 	return mcp.Tool{
 		Name:        "drive_upload",
-		Description: "Upload a file to Google Drive. Content should be provided as base64-encoded data.",
+		Description: "Upload a file to Google Drive. Provide either base64-encoded content or a local file_path to stream from disk.",
 		InputSchema: mcp.ToolInputSchema{
 			Type: "object",
 			Properties: map[string]any{
 				"name": map[string]any{
 					"type":        "string",
-					"description": "Name for the uploaded file",
+					"description": "Name for the uploaded file. Defaults to the base name of file_path when omitted.",
 				},
 				"content": map[string]any{
 					"type":        "string",
-					"description": "Base64-encoded file content",
+					"description": "Base64-encoded file content. Mutually exclusive with file_path.",
+				},
+				"file_path": map[string]any{
+					"type":        "string",
+					"description": "Absolute path to a local file to upload. Mutually exclusive with content.",
 				},
 				"mime_type": map[string]any{
 					"type":        "string",
-					"description": "MIME type of the file (e.g., text/plain, application/pdf)",
+					"description": "MIME type of the file (e.g., text/plain, application/pdf). Inferred from the file extension when omitted.",
 				},
 				"parent_id": map[string]any{
 					"type":        "string",
 					"description": "Optional parent folder ID. Defaults to root.",
 				},
 			},
-			Required: []string{"name", "content", "mime_type"},
+			Required: []string{},
 		},
 	}
 }
@@ -312,23 +320,44 @@ type uploadResult struct {
 
 func uploadHandler(ts oauth2.TokenSource) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		name, err := requiredString(req, "name")
-		if err != nil {
-			return toolError(err.Error()), nil
-		}
-		content, err := requiredString(req, "content")
-		if err != nil {
-			return toolError(err.Error()), nil
-		}
-		mimeType, err := requiredString(req, "mime_type")
-		if err != nil {
-			return toolError(err.Error()), nil
-		}
+		name := optionalString(req, "name", "")
+		content := optionalString(req, "content", "")
+		filePath := optionalString(req, "file_path", "")
+		mimeType := optionalString(req, "mime_type", "")
 		parentID := optionalString(req, "parent_id", "")
 
-		decoded, err := base64.StdEncoding.DecodeString(content)
-		if err != nil {
-			return toolError(fmt.Sprintf("invalid base64 content: %v", err)), nil
+		if (content == "") == (filePath == "") {
+			return toolError("provide exactly one of content or file_path"), nil
+		}
+
+		var media io.Reader
+		if filePath != "" {
+			f, err := os.Open(filePath)
+			if err != nil {
+				return toolError(fmt.Sprintf("failed to open file: %v", err)), nil
+			}
+			defer f.Close()
+			media = f
+
+			if name == "" {
+				name = filepath.Base(filePath)
+			}
+			if mimeType == "" {
+				mimeType = mime.TypeByExtension(filepath.Ext(filePath))
+			}
+		} else {
+			decoded, err := base64.StdEncoding.DecodeString(content)
+			if err != nil {
+				return toolError(fmt.Sprintf("invalid base64 content: %v", err)), nil
+			}
+			media = bytes.NewReader(decoded)
+		}
+
+		if name == "" {
+			return toolError("name is required"), nil
+		}
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
 		}
 
 		srv, err := newService(ctx, ts)
@@ -345,7 +374,7 @@ func uploadHandler(ts oauth2.TokenSource) server.ToolHandlerFunc {
 		}
 
 		created, err := srv.Files.Create(file).
-			Media(strings.NewReader(string(decoded))).
+			Media(media).
 			Context(ctx).
 			Do()
 		if err != nil {

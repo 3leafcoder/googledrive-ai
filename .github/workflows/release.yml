@@ -40,7 +40,7 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY="${BINARY}.exe"
           fi
-          go build -ldflags="-s -w" -o "${BINARY}" .
+          go build -ldflags="-s -w" -o "${BINARY}" ./cmd/googledrive-mcp
 
       - uses: actions/upload-artifact@v4
         with:
