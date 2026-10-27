@@ -1,4 +1,5 @@
 /googledrive-mcp
+/dist/
 docs/site/
 credentials.json
 .spekk/index.db

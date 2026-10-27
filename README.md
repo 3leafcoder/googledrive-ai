@@ -29,34 +29,43 @@ Detailed walkthrough: [docs/setup/google-cloud.md](docs/setup/google-cloud.md)
 
 ### 2. Install
 
-**Download a prebuilt binary** from the [latest release](https://github.com/pariwork/googledrive-ai/releases/latest):
+**One-line install** (macOS/Linux) downloads the latest release for your platform
+to `~/.local/bin` — a user-owned directory, so the binary can self-update without
+sudo:
 
 ```bash
-# macOS (Apple Silicon)
-curl -Lo /usr/local/bin/googledrive-mcp https://github.com/pariwork/googledrive-ai/releases/latest/download/googledrive-mcp-darwin-arm64
-chmod +x /usr/local/bin/googledrive-mcp
-
-# macOS (Intel)
-curl -Lo /usr/local/bin/googledrive-mcp https://github.com/pariwork/googledrive-ai/releases/latest/download/googledrive-mcp-darwin-amd64
-chmod +x /usr/local/bin/googledrive-mcp
-
-# Linux (x86_64)
-sudo curl -Lo /usr/local/bin/googledrive-mcp https://github.com/pariwork/googledrive-ai/releases/latest/download/googledrive-mcp-linux-amd64
-sudo chmod +x /usr/local/bin/googledrive-mcp
-
-# Linux (ARM64)
-sudo curl -Lo /usr/local/bin/googledrive-mcp https://github.com/pariwork/googledrive-ai/releases/latest/download/googledrive-mcp-linux-arm64
-sudo chmod +x /usr/local/bin/googledrive-mcp
-
-# Windows (PowerShell) — save to a directory in your PATH
-Invoke-WebRequest -Uri https://github.com/pariwork/googledrive-ai/releases/latest/download/googledrive-mcp-windows-amd64.exe -OutFile "$env:LOCALAPPDATA\Microsoft\WindowsApps\googledrive-mcp.exe"
+curl -fsSL https://raw.githubusercontent.com/3leafcoder/googledrive-ai/main/install.sh | sh
 ```
 
-**Or build from source** (requires Go 1.21+):
+Override the destination with `GOOGLEDRIVE_MCP_INSTALL_DIR`, or pin a version with
+`GOOGLEDRIVE_MCP_VERSION`. If `~/.local/bin` is not on your `$PATH`, the script
+prints the exact line to add.
+
+**Windows** (PowerShell) — download from the [latest release](https://github.com/3leafcoder/googledrive-ai/releases/latest):
+
+```powershell
+Invoke-WebRequest -Uri https://github.com/3leafcoder/googledrive-ai/releases/latest/download/googledrive-mcp-windows-amd64.exe -OutFile "$env:LOCALAPPDATA\Microsoft\WindowsApps\googledrive-mcp.exe"
+```
+
+**Or build from source** (requires Go 1.25+):
 
 ```bash
-go install github.com/pariwork/googledrive-ai/cmd/googledrive-mcp@latest
+git clone https://github.com/3leafcoder/googledrive-ai && cd googledrive-ai
+make build   # produces ./googledrive-mcp
 ```
+
+### Updating
+
+A released binary updates itself in place from the latest GitHub release:
+
+```bash
+googledrive-mcp update          # download and install the latest release
+googledrive-mcp update --check  # report whether an update is available, change nothing
+```
+
+A `dev` build (built from source without a release version) refuses to update, and
+if the binary lives in a directory you don't own it fails with an actionable
+message rather than escalating to sudo.
 
 ### 3. Configure credentials
 

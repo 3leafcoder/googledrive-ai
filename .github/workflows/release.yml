@@ -4,63 +4,42 @@ on:
   push:
     tags:
       - "v*"
+  # On-demand releases: run the workflow by hand against a tag or branch.
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write # required to create the GitHub Release and upload assets
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-          - goos: linux
-            goarch: arm64
-          - goos: darwin
-            goarch: amd64
-          - goos: darwin
-            goarch: arm64
-          - goos: windows
-            goarch: amd64
+  release:
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
-      - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          BINARY="googledrive-mcp-${{ matrix.goos }}-${{ matrix.goarch }}"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            BINARY="${BINARY}.exe"
-          fi
-          go build -ldflags="-s -w" -o "${BINARY}" ./cmd/googledrive-mcp
+      # Tests gate the release: a failure here aborts before anything is built
+      # or published, so a broken commit can never ship.
+      - name: Test
+        run: make test
 
-      - uses: actions/upload-artifact@v4
+      # Strip the leading `v` so the tag `v1.3.0` embeds the version `1.3.0`.
+      # workflow_dispatch runs carry no tag; fall back to the ref name so a
+      # manual release still produces a labelled build instead of an empty one.
+      - name: Resolve version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # Shared cross-compile step (see cross-compile-all-platforms): one target
+      # produces every googledrive-mcp-<goos>-<goarch> asset with the version baked in.
+      - name: Build all platforms
+        run: make build-all VERSION="${{ steps.version.outputs.version }}"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
         with:
-          name: googledrive-mcp-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: googledrive-mcp-*
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-
-      - name: Generate checksums
-        run: sha256sum googledrive-mcp-* > checksums.txt
-
-      - uses: softprops/action-gh-release@v2
-        with:
+          files: dist/*
           generate_release_notes: true
-          files: |
-            googledrive-mcp-*
-            checksums.txt
+          fail_on_unmatched_files: true # no assets to upload is a hard failure

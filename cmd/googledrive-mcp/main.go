@@ -4,21 +4,41 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/pariwork/googledrive-ai/internal/auth"
 	internalmcp "github.com/pariwork/googledrive-ai/internal/mcp"
+	"github.com/pariwork/googledrive-ai/internal/update"
+	verpkg "github.com/pariwork/googledrive-ai/internal/version"
 
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// version is the build version, injected at compile time via
+// -ldflags "-X main.version=...". A plain `go build` leaves it at "dev".
+var version = "dev"
+
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "auth" {
-		if err := runAuth(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+	// Publish the ldflags-injected version to the shared package so other
+	// packages (self-update) can read it without importing main.
+	verpkg.SetCurrent(version)
+
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "auth":
+			if err := runAuth(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			return
+		case "update":
+			os.Exit(updateCmd(os.Args[2:]))
+		case "version", "--version", "-v":
+			fmt.Println(version)
+			return
 		}
-		return
 	}
 
 	// Parse top-level flags for MCP server mode.
@@ -48,6 +68,33 @@ func main() {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// updateCmd self-updates the binary from the latest public GitHub release. It
+// prints "Already on latest version" when nothing newer exists and the
+// before → after version on a successful upgrade. The HTTP client carries a
+// generous timeout that covers the asset download.
+//
+// With --check it only previews availability: it queries the Releases API and
+// compares versions without downloading an asset or writing to disk, and exits 0
+// whether or not an update is available.
+func updateCmd(args []string) int {
+	flags := flag.NewFlagSet("update", flag.ContinueOnError)
+	check := flags.Bool("check", false, "report whether an update is available without installing")
+	if err := flags.Parse(args); err != nil {
+		return 1
+	}
+
+	client := &http.Client{Timeout: 5 * time.Minute}
+	run := update.Run
+	if *check {
+		run = update.RunCheck
+	}
+	if err := run(client, version, os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
 }
 
 func runAuth() error {
