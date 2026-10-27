@@ -50,9 +50,10 @@ Invoke-WebRequest -Uri https://github.com/3leafcoder/googledrive-ai/releases/lat
 **Or build from source** (requires Go 1.25+):
 
 ```bash
-git clone https://github.com/3leafcoder/googledrive-ai && cd googledrive-ai
-make build   # produces ./googledrive-mcp
+go install github.com/3leafcoder/googledrive-ai/cmd/googledrive-mcp@latest
 ```
+
+Or from a clone: `make build` (produces `./googledrive-mcp`).
 
 ### Updating
 

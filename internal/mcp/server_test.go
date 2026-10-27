@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/pariwork/googledrive-ai/internal/auth"
-	internalmcp "github.com/pariwork/googledrive-ai/internal/mcp"
+	"github.com/3leafcoder/googledrive-ai/internal/auth"
+	internalmcp "github.com/3leafcoder/googledrive-ai/internal/mcp"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"golang.org/x/oauth2"

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/pariwork/googledrive-ai/internal/build"
+	"github.com/3leafcoder/googledrive-ai/internal/build"
 )
 
 // Asset is one release asset as returned by the GitHub Releases API. Only the

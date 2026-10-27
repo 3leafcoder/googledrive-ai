@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pariwork/googledrive-ai/internal/build"
+	"github.com/3leafcoder/googledrive-ai/internal/build"
 )
 
 // TestBuildAllCrossCompiles drives `make build-all` end to end: it must produce

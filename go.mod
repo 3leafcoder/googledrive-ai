@@ -1,4 +1,4 @@
-module github.com/pariwork/googledrive-ai
+module github.com/3leafcoder/googledrive-ai
 
 go 1.25.8
 

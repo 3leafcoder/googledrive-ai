@@ -2,10 +2,10 @@ package mcp
 
 import (
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/pariwork/googledrive-ai/internal/auth"
-	"github.com/pariwork/googledrive-ai/internal/docs"
-	"github.com/pariwork/googledrive-ai/internal/drive"
-	"github.com/pariwork/googledrive-ai/internal/sheets"
+	"github.com/3leafcoder/googledrive-ai/internal/auth"
+	"github.com/3leafcoder/googledrive-ai/internal/docs"
+	"github.com/3leafcoder/googledrive-ai/internal/drive"
+	"github.com/3leafcoder/googledrive-ai/internal/sheets"
 )
 
 const (

@@ -8,10 +8,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/pariwork/googledrive-ai/internal/auth"
-	internalmcp "github.com/pariwork/googledrive-ai/internal/mcp"
-	"github.com/pariwork/googledrive-ai/internal/update"
-	verpkg "github.com/pariwork/googledrive-ai/internal/version"
+	"github.com/3leafcoder/googledrive-ai/internal/auth"
+	internalmcp "github.com/3leafcoder/googledrive-ai/internal/mcp"
+	"github.com/3leafcoder/googledrive-ai/internal/update"
+	verpkg "github.com/3leafcoder/googledrive-ai/internal/version"
 
 	"github.com/mark3labs/mcp-go/server"
 )

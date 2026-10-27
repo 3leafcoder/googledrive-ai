@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/pariwork/googledrive-ai/internal/version"
+	"github.com/3leafcoder/googledrive-ai/internal/version"
 )
 
 // latestReleaseURL is the public GitHub Releases API endpoint for the latest

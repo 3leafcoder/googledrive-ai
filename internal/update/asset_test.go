@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pariwork/googledrive-ai/internal/build"
+	"github.com/3leafcoder/googledrive-ai/internal/build"
 )
 
 // SelectAsset picks the asset whose name exactly matches the running platform
